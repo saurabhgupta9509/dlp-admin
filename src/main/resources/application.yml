@@ -1,0 +1,34 @@
+#spring:
+#
+#  thymeleaf:
+#    cache: false
+#
+#  datasource:
+#    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/dlpdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+#    username: ${SPRING_DATASOURCE_USERNAME:root}
+#    password: ${SPRING_DATASOURCE_PASSWORD:Stech@9509}
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#
+#  jpa:
+#    hibernate:
+#      ddl-auto: update        # for dev only—creates/updates schema automatically
+#    properties:
+#      hibernate:
+#        format_sql: true
+#    show-sql: true
+#
+#
+#rabbitmq:
+#  host: ${RABBITMQ_HOST:localhost}
+#  username: ${RABBITMQ_USER:guest}
+#  password: ${RABBITMQ_PASS:guest}
+#
+#minio:
+#  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+#  accessKey: ${MINIO_ACCESS_KEY:minioadmin}
+#  secretKey: ${MINIO_SECRET_KEY:minioadmin}
+#  bucket: dlp-temp
+#
+#
+#server:
+#  port: 8080

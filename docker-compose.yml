@@ -1,0 +1,143 @@
+##version: '3.8'
+##services:
+##  mysql:
+##    image: mysql:8.0
+##    environment:
+##      MYSQL_ROOT_PASSWORD: Stech@9509
+##      MYSQL_DATABASE: dlpdb
+##      MYSQL_USER: root
+##      MYSQL_PASSWORD: Stech@9509
+##    ports: ["3306:3306"]
+##    command: --default-authentication-plugin=mysql_native_password
+##    healthcheck:
+##      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+##      interval: 10s
+##      timeout: 5s
+##      retries: 5
+##
+##  rabbitmq:
+##    image: rabbitmq:3-management
+##    environment:
+##      RABBITMQ_DEFAULT_USER: guest
+##      RABBITMQ_DEFAULT_PASS: guest
+##    ports: ["5672:5672","15672:15672"]
+##    healthcheck:
+##      test: ["CMD", "rabbitmq-diagnostics", "status"]
+##      interval: 10s
+##      timeout: 5s
+##      retries: 5
+##
+##  minio:
+##    image: minio/minio:latest
+##    environment:
+##      MINIO_ROOT_USER: minioadmin
+##      MINIO_ROOT_PASSWORD: minioadmin
+##    command: server /data
+##    ports: ["9000:9000","9001:9001"]
+##    healthcheck:
+##      test: [ "CMD", "wget", "--spider", "-S", "http://127.0.0.1:9000" ]
+##      interval: 10s
+##      timeout: 5s
+##      retries: 5
+##
+##  lp-app:
+##    build: .
+##    depends_on:
+##      mysql:
+##        condition: service_healthy
+##      rabbitmq:
+##        condition: service_healthy
+##      minio:
+##        condition: service_started
+##    ports: [ "8080:8080" ]
+##    environment:
+##      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dlpdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+##      SPRING_DATASOURCE_USERNAME: root
+##      SPRING_DATASOURCE_PASSWORD: Stech@9509
+##      MINIO_ENDPOINT: http://minio:9000
+##      MINIO_ACCESS_KEY: minioadmin
+##      MINIO_SECRET_KEY: minioadmin
+##      MINIO_BUCKET: dlp-temp
+##      RABBITMQ_HOST: rabbitmq
+##      RABBITMQ_USER: guest
+##      RABBITMQ_PASS: guest
+##    restart: on-failure
+##
+##volumes:
+##  mysql_data:
+##  minio_data:
+#
+#
+#version: "3.8"
+#
+#services:
+#  mysql:
+#    image: mysql:8.0
+#    container_name: mysql-container
+#    environment:
+#      MYSQL_ROOT_PASSWORD: Stech@9509
+#      MYSQL_DATABASE: dlpdb
+#      MYSQL_USER: dlp
+#      MYSQL_PASSWORD: dlpPass123
+#    ports:
+#      - "3306:3306"
+#    volumes:
+#      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+#    command: --default-authentication-plugin=mysql_native_password
+#    healthcheck:
+#      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-P", "3306"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#
+#  rabbitmq:
+#    image: rabbitmq:3-management
+#    container_name: rabbitmq-container
+#    environment:
+#      RABBITMQ_DEFAULT_USER: guest
+#      RABBITMQ_DEFAULT_PASS: guest
+#    ports:
+#      - "5672:5672"   # AMQP
+#      - "15672:15672" # management UI
+#    healthcheck:
+#      test: ["CMD", "rabbitmq-diagnostics", "status"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#
+#  minio:
+#    image: minio/minio:latest
+#    container_name: minio-container
+#    environment:
+#      MINIO_ROOT_USER: minioadmin
+#      MINIO_ROOT_PASSWORD: minioadmin
+#    command: server /data --console-address ":9001"
+#    volumes:
+#      - ./docker/minio/data:/data
+#    ports:
+#      - "9000:9000"  # S3 API
+#      - "9001:9001"  # console
+#
+#
+#  dlp-app:
+#    build: .
+#    depends_on:
+#      - mysql
+#      - rabbitmq
+#      - minio
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dlpdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+#      SPRING_DATASOURCE_USERNAME: root
+#      SPRING_DATASOURCE_PASSWORD: Stech@9509
+#      MINIO_ENDPOINT: http://minio:9000
+#      MINIO_ACCESS_KEY: minioadmin
+#      MINIO_SECRET_KEY: minioadmin
+#      RABBITMQ_HOST: rabbitmq
+#      RABBITMQ_USER: guest
+#      RABBITMQ_PASS: guest
+##
+##volumes:
+##  mysql_data:
+##  minio_data:
