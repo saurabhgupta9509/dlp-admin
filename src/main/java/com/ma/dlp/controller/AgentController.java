@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,14 +114,17 @@ public class AgentController {
 
             // Get active capabilities and convert to policies
             List<AgentCapability> activeCapabilities = agentService.getActiveCapabilities(agentId);
-            List<Policy> policies = convertCapabilitiesToPolicies(activeCapabilities);
+//
+            List<PolicyCapabilityDTO> policyDTOs = activeCapabilities.stream()
+                    .map(this::convertCapabilityToPolicyDTO) // Call the correct DTO converter
+                    .collect(Collectors.toList());
 
             AgentPoliciesResponse response = new AgentPoliciesResponse();
             response.setAgentId(agentId);
-            response.setPolicies(policies);
+            response.setPolicies(policyDTOs);
             response.setTimestamp(System.currentTimeMillis());
 
-            log.info("📋 Returning {} active policies to agent {}", policies.size(), agentId);
+            log.info("📋 Returning {} active policies to agent {}", policyDTOs.size(), agentId);
 
             return ResponseEntity.ok(new ApiResponse<>(true, "Active policies retrieved", response));
         } catch (Exception e) {
@@ -129,32 +134,19 @@ public class AgentController {
         }
     }
 
-
-
-//    @GetMapping("/policies")
-//    public ResponseEntity<ApiResponse<AgentPoliciesResponse>> getAgentPolicies(
-//            @RequestHeader("Authorization") String token,
-//            @RequestParam Long agentId) {
-//
-//        if (!agentService.validateToken(token, agentId)) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                    .body(new ApiResponse<>(false, "Invalid token"));
-//        }
-//
-//        try {
-//            List<Policy> policies = policyService.getAgentPolicies(agentId);
-//
-//            AgentPoliciesResponse response = new AgentPoliciesResponse();
-//            response.setAgentId(agentId);
-//            response.setPolicies(policies);
-//            response.setTimestamp(System.currentTimeMillis());
-//
-//            return ResponseEntity.ok(new ApiResponse<>(true, "Policies retrieved", response));
-//        } catch (Exception e) {
-//            return ResponseEntity.badRequest()
-//                    .body(new ApiResponse<>(false, "Failed to get policies: " + e.getMessage()));
-//        }
-//    }
+    private PolicyCapabilityDTO convertCapabilityToPolicyDTO(AgentCapability capability) {
+        PolicyCapabilityDTO dto = new PolicyCapabilityDTO();
+        dto.setCode(capability.getCapabilityCode());
+        dto.setName(capability.getName());
+        dto.setDescription(capability.getDescription());
+        dto.setCategory(capability.getCategory());
+        dto.setAction(capability.getAction());
+        dto.setTarget(capability.getTarget());
+        dto.setSeverity(capability.getSeverity());
+        dto.setIsActive(capability.getIsActive()); // This is the field Rust needs
+        dto.setPolicyData(capability.getPolicyData() != null ? capability.getPolicyData() : "");
+        return dto;
+    }
 
     @PostMapping("/alerts")
     public ResponseEntity<ApiResponse<String>> submitAlert(
@@ -268,25 +260,22 @@ public class AgentController {
         }
     }
 
-    private List<Policy> convertCapabilitiesToPolicies(List<AgentCapability> capabilities) {
+    private List<PolicyCapabilityDTO> convertCapabilitiesToPolicies(List<AgentCapability> capabilities) {
         return capabilities.stream()
-                .map(this::convertCapabilityToPolicy)
-                .toList();
+                .map(this::convertCapabilityToPolicyDTO)
+                .collect(Collectors.toList());
     }
 
-    private Policy convertCapabilityToPolicy(AgentCapability capability) {
-        Policy policy = new Policy();
-        policy.setPolicyCode(capability.getCapabilityCode());
-        policy.setName(capability.getName());
-        policy.setDescription(capability.getDescription());
-        policy.setCategory(capability.getCategory());
-        policy.setPolicyType(capability.getAction() + "_" + capability.getCategory());
-        policy.setAction(capability.getAction());
-        policy.setTarget(capability.getTarget());
-        policy.setSeverity(capability.getSeverity());
-        policy.setIsActive(true); // These are all active since we filtered for active capabilities
 
-        return policy;
+
+
+
+    @Data
+    public static class AgentActivePoliciesResponse {
+        private Long agentId;
+        private List<PolicyCapabilityDTO> policies; // <-- This is a list of DTOs
+        private Long timestamp;
+
     }
 
 }

@@ -47,9 +47,21 @@ public class AgentCapability {
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdAt = new Date();
 
+    @Column(length = 2048) // Allow up to 2048 characters for the list
+    private String policyData;
+
+
     @PrePersist
     protected void onCreate() {
         reportedAt = new Date();
+    }
+
+    public String getPolicyData() {
+        return policyData;
+    }
+
+    public void setPolicyData(String policyData) {
+        this.policyData = policyData;
     }
 
     public Boolean getIsActive() {

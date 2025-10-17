@@ -1040,7 +1040,32 @@
             </div>
         </div>
     </div>
+    <div id="editListModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeListEditorModal()">×</button>
+            <h3 id="editListTitle">Edit Blocklist</h3>
 
+            <input type="hidden" id="editListAgentId">
+            <input type="hidden" id="editListPolicyCode">
+            <input type="hidden" id="editListHostname">
+
+            <div class="form-group">
+                <label>Currently Blocked Entries:</label>
+                <div id="currentBlocklistContainer" class="agent-selector" style="min-height: 100px;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="newBlocklistItems">Add New Entries (comma-separated):</label>
+                <textarea id="newBlocklistItems" class="form-control" placeholder="e.g., new-domain.com, 1.2.3.4"></textarea>
+            </div>
+
+            <button class="btn btn-success" style="width: 100%;" onclick="saveBlocklist()">
+                <span>💾</span>
+                <span>Save Changes</span>
+            </button>
+        </div>
+    </div>
     <script>
         // All JavaScript code remains exactly the same as in the previous version
         // Only the CSS has been enhanced for better visual design
@@ -1407,7 +1432,9 @@
             document.getElementById('policyModal').classList.add('hidden');
         }
 
-       async function openPolicyModal(agentId, hostname) {
+       // REPLACE your existing openPolicyModal function with this
+   // REPLACE your existing openPolicyModal function with this
+    async function openPolicyModal(agentId, hostname) {
         const modal = document.getElementById('policyModal');
         const title = document.getElementById('modalAgentName');
         const content = document.getElementById('modalPolicyList');
@@ -1431,10 +1458,11 @@
                             const btnClass = p.isActive ? 'btn-warning' : 'btn-success';
                             const btnText = p.isActive ? 'Deactivate' : 'Activate';
                             const btnIcon = p.isActive ? '⏸️' : '▶️';
-                            return `
+                            let policyCardHTML = `
                             <div class="policy-card ${p.isActive ? 'selected' : ''}">
                                 <h5>${p.name}</h5>
                                 <p style="font-size: 0.9em; color: #555;">${p.description}</p>
+
                                 <div class="policy-action" style="display:flex; justify-content:space-between; align-items:center;">
                                     <strong>Status: <span class="${p.isActive ? 'status-active' : 'status-inactive'}">${p.isActive ? 'ACTIVE' : 'INACTIVE'}</span></strong>
                                     <button class="btn ${btnClass} btn-sm" onclick="togglePolicy(${agentId}, '${p.code}', ${p.isActive}, '${hostname}')">
@@ -1442,13 +1470,169 @@
                                         <span>${btnText}</span>
                                     </button>
                                 </div>
-                            </div>`;
+                            `;
+
+                            // --- NEW LOGIC: Add "Edit" button for specific policies ---
+                            if (p.code === 'NETWORK_DNS_BLOCK') {
+                                // We pass the raw policyData string to the editor function
+                                const policyDataString = p.policyData ? p.policyData.replace(/'/g, "\\'") : '{}';
+                                policyCardHTML += `
+                                <button class="btn btn-primary btn-sm" style="width: 100%; margin-top: 10px;"
+                                        onclick='openDnsEditor(${agentId}, "${p.code}", "${hostname}", \`${policyDataString}\`)'>
+                                    ✏️ Edit Blocklist
+                                </button>
+                                `;
+                            }
+                            // --- END NEW LOGIC ---
+
+                            policyCardHTML += `</div>`;
+                            return policyCardHTML;
                         }).join('')}
                         </div>
                     </div>`).join('');
             }
         } catch (error) {
             content.innerHTML = `<div class="empty-state" style="color: var(--danger);">${error.message}</div>`;
+        }
+    }
+        // ADD THESE 3 NEW FUNCTIONS
+
+    function closeListEditorModal() {
+        document.getElementById('editListModal').classList.add('hidden');
+    }
+
+    /**
+     * Opens the editor modal for the DNS blocklist.
+     */
+    function openDnsEditor(agentId, policyCode, hostname, policyDataString) {
+        document.getElementById('editListTitle').textContent = `Edit Blocklist for ${hostname}`;
+        document.getElementById('editListAgentId').value = agentId;
+        document.getElementById('editListPolicyCode').value = policyCode;
+        document.getElementById('editListHostname').value = hostname; // Store for refresh
+        document.getElementById('newBlocklistItems').value = ''; // Clear new items
+
+        const container = document.getElementById('currentBlocklistContainer');
+        container.innerHTML = ''; // Clear old list
+
+        let policyData = { domains: [], ips: [] };
+        try {
+            if (policyDataString) {
+                policyData = JSON.parse(policyDataString) || policyData;
+            }
+        } catch(e) { console.warn("Could not parse policy data", policyDataString); }
+
+        const allEntries = [...(policyData.domains || []), ...(policyData.ips || [])];
+
+        if (allEntries.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="padding: 10px;">No entries are currently blocked.</div>';
+        } else {
+            // Render each item as a "selectable" card we can remove
+            container.innerHTML = allEntries.map(entry => `
+                <div class="agent-card" id="entry-${entry}">
+                    <span class="agent-name">${entry}</span>
+                    <button class="btn btn-danger btn-sm" onclick="removeBlocklistEntry('${entry}')">
+                        &times;
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('editListModal').classList.remove('hidden');
+    }
+
+    /**
+     * Helper to remove an entry from the list in the modal
+     */
+    function removeBlocklistEntry(entry) {
+        const entryElement = document.getElementById(`entry-${entry}`);
+        if (entryElement) {
+            entryElement.remove();
+        }
+    }
+
+    /**
+     * Reads all items from the editor modal and saves them
+     */
+    async function saveBlocklist() {
+        const agentId = document.getElementById('editListAgentId').value;
+        const policyCode = document.getElementById('editListPolicyCode').value;
+        const hostname = document.getElementById('editListHostname').value;
+
+        // 1. Get all *existing* entries that are still in the list
+        const existingEntries = Array.from(document.querySelectorAll('#currentBlocklistContainer .agent-name'))
+                                     .map(el => el.textContent);
+
+        // 2. Get all *new* entries from the text box
+        const newEntryText = document.getElementById('newBlocklistItems').value;
+        const newEntries = newEntryText.split(',')
+                                       .map(e => e.trim())
+                                       .filter(e => e.length > 0);
+
+        // 3. Combine them and remove duplicates
+        const allEntries = [...new Set([...existingEntries, ...newEntries])];
+
+        // 4. Separate them back into IPs and Domains (a simple way)
+        const domains = allEntries.filter(e => e.includes('.'));
+        const ips = allEntries.filter(e => !e.includes('.'));
+
+        const policyDataJson = JSON.stringify({ domains, ips });
+
+        try {
+            const body = {
+                agentId: agentId, // Make sure agentId is a number
+                policyCode: policyCode,
+                policyData: policyDataJson
+            };
+
+            await callApi('/api/admin/update-policy-data', { method: 'POST', body: JSON.stringify(body) });
+            showToast('Blocklist updated successfully!', 'success');
+
+            closeListEditorModal();
+            // Refresh the main policy modal to show the new state
+            await openPolicyModal(agentId, hostname);
+
+        } catch (error) {
+            showToast(`Error updating data: ${error.message}`, 'error');
+        }
+    }
+
+
+
+    async function savePolicyData(agentId, policyCode, hostname) {
+        let policyDataJson = null;
+
+        // Find the correct text boxes inside the modal
+        if (policyCode === 'NETWORK_DNS_BLOCK') {
+            const domainText = document.getElementById(`modal-dns-domains-${agentId}`).value;
+            const ipText = document.getElementById(`modal-dns-ips-${agentId}`).value;
+
+            const domains = domainText.split(',').map(d => d.trim()).filter(d => d.length > 0);
+            const ips = ipText.split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+
+            if (domains.length === 0 && ips.length === 0) {
+                showToast('Please enter at least one domain or IP to block.', 'warning');
+                return;
+            }
+
+            policyDataJson = JSON.stringify({ domains, ips });
+        }
+        // You can add more 'else if' blocks here for future data-driven policies
+
+        try {
+            const body = {
+                agentId: agentId,
+                policyCode: policyCode,
+                policyData: policyDataJson
+            };
+
+            await callApi('/api/admin/update-policy-data', { method: 'POST', body: JSON.stringify(body) });
+            showToast('Policy data updated successfully!', 'success');
+
+            // Refresh the modal to show the saved data
+            await openPolicyModal(agentId, hostname);
+
+        } catch (error) {
+            showToast(`Error updating data: ${error.message}`, 'error');
         }
     }
 
@@ -1469,30 +1653,93 @@
         }
 
         // --- Policies Tab (Wizard) ---
-        async function loadProtectionPolicies() {
-            const category = document.getElementById('protectionCategory').value;
-            const container = document.getElementById('policiesContainer');
-            if (!category) {
-                container.innerHTML = '<div class="loading">Select a category first...</div>';
-                return;
+        // REPLACE this function
+   // REPLACE your existing loadProtectionPolicies function with this one
+    async function loadProtectionPolicies() {
+        const category = document.getElementById('protectionCategory').value;
+        const container = document.getElementById('policiesContainer');
+        if (!category) {
+            container.innerHTML = '<div class="loading">Select a category first...</div>';
+            return;
+        }
+
+        try {
+            const result = await callApi('/api/admin/protection-policies');
+            const policies = (result && result.success && result.data) ? (result.data[category] || []) : [];
+
+            if (policies.length === 0) {
+                 container.innerHTML = `<div class="empty-state">No policies found for this category.</div>`;
+                 return;
             }
 
-            try {
-                const result = await callApi('/api/admin/protection-policies');
-                const policies = (result && result.success && result.data) ? (result.data[category] || []) : [];
-                container.innerHTML = policies.length > 0 ? policies.map(policy => `
-                    <div class="policy-card" onclick="selectPolicy('${policy.policyCode}', this)">
-                        <h5>${policy.name}</h5>
-                        <p style="font-size: 0.9em; color: #555;">${policy.description}</p>
-                        <div class="policy-action">
-                            <span><strong>Action:</strong> ${policy.action}</span>
-                            <span class="severity-badge ${(policy.severity || 'MEDIUM').toLowerCase()}">${policy.severity || 'MEDIUM'}</span>
+            container.innerHTML = policies.map(policy => {
+                let policyCardHTML = `
+                <div class="policy-card" onclick="selectPolicy('${policy.policyCode}', this)">
+                    <h5>${policy.name}</h5>
+                    <p style="font-size: 0.9em; color: #555;">${policy.description}</p>
+                    <div class="policy-action">
+                        <span><strong>Action:</strong> ${policy.action}</span>
+                        <span class="severity-badge ${(policy.severity || 'LOW').toLowerCase()}">${policy.severity || 'N/A'}</span>
+                    </div>
+                `;
+
+                // --- THIS IS THE NEW LOGIC ---
+                // If this is our special DNS policy, add the new selector
+                if (policy.policyCode === 'NETWORK_DNS_BLOCK') {
+                    policyCardHTML += `
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label for="dns-block-type">Block Type:</label>
+                            <select id="dns-block-type" class="form-control" onchange="showDnsInput()" onclick="event.stopPropagation();">
+                                <option value="">Select type...</option>
+                                <option value="domains">Block by Domain Name</option>
+                                <option value="ips">Block by IP Address</option>
+                            </select>
                         </div>
-                    </div>`).join('') : `<div class="empty-state">No policies found for this category.</div>`;
-            } catch (error) {
-                container.innerHTML = `<div class="empty-state" style="color: var(--danger);">Error: ${error.message}</div>`;
-            }
+
+                        <div id="dns-domains-input-group" class="form-group hidden" style="margin-top: 10px;">
+                            <label for="dns-block-list-domains">Domains to Block (comma-separated):</label>
+                            <textarea id="dns-block-list-domains" class="form-control"
+                                      placeholder="e.g., dropbox.com, mega.nz"
+                                      onclick="event.stopPropagation();"></textarea>
+                        </div>
+
+                        <div id="dns-ips-input-group" class="form-group hidden" style="margin-top: 10px;">
+                            <label for="dns-block-list-ips">IPs to Block (comma-separated):</label>
+                            <textarea id="dns-block-list-ips" class="form-control"
+                                      placeholder="e.g., 8.8.8.8, 1.1.1.1"
+                                      onclick="event.stopPropagation();"></textarea>
+                        </div>
+                    `;
+                }
+                // --- END OF NEW LOGIC ---
+
+                policyCardHTML += `</div>`;
+                return policyCardHTML;
+
+            }).join('');
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state" style="color: var(--danger);">Error: ${error.message}</div>`;
         }
+    }
+
+    // ADD THIS NEW FUNCTION to your <script> tag
+
+    function showDnsInput() {
+        const blockType = document.getElementById('dns-block-type').value;
+        const domainGroup = document.getElementById('dns-domains-input-group');
+        const ipGroup = document.getElementById('dns-ips-input-group');
+
+        // Hide both first
+        domainGroup.classList.add('hidden');
+        ipGroup.classList.add('hidden');
+
+        // Show the selected one
+        if (blockType === 'domains') {
+            domainGroup.classList.remove('hidden');
+        } else if (blockType === 'ips') {
+            ipGroup.classList.remove('hidden');
+        }
+    }
 
         // REPLACE your existing loadAgentsForWizard function
    // REPLACE your existing loadAgentsForWizard function with this
@@ -1605,26 +1852,60 @@
 
         // REPLACE your existing assignProtectionPolicy function with this one
 
-
+   // REPLACE your existing assignProtectionPolicy function with this one
     async function assignProtectionPolicy() {
         if (selectedAgents.length === 0 || !selectedPolicyId) {
             showToast('Please select a policy and at least one agent.', 'warning');
             return;
         }
-        try {
-            const body = { policyCode: selectedPolicyId, agentIds: selectedAgents };
-            const result = await callApi('/api/admin/assign-protection', {
-                method: 'POST',
-                body: JSON.stringify(body)
-            });
 
-            if (result && result.success) {
-                // The message from the backend will now include success and error details
-                showToast(result.message, 'success');
-                resetWizard();
+        try {
+            let policyDataJson = null; // We will send a JSON string
+            let domains = [];
+            let ips = [];
+
+            // Check if we are assigning the DNS policy
+            if (selectedPolicyId === 'NETWORK_DNS_BLOCK') {
+                const blockType = document.getElementById('dns-block-type').value;
+
+                if (blockType === 'domains') {
+                    const domainText = document.getElementById('dns-block-list-domains').value;
+                    if (!domainText) {
+                        showToast('Please enter at least one domain to block.', 'warning');
+                        return;
+                    }
+                    domains = domainText.split(',').map(d => d.trim()).filter(d => d.length > 0);
+
+                } else if (blockType === 'ips') {
+                    const ipText = document.getElementById('dns-block-list-ips').value;
+                    if (!ipText) {
+                        showToast('Please enter at least one IP to block.', 'warning');
+                        return;
+                    }
+                    ips = ipText.split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+
+                } else {
+                    // No type was selected
+                    showToast('Please select a block type (Domain or IP).', 'warning');
+                    return;
+                }
+
+                // Create a JSON object and stringify it
+                const data = { domains, ips };
+                policyDataJson = JSON.stringify(data);
             }
+
+            const body = {
+                policyCode: selectedPolicyId,
+                agentIds: selectedAgents,
+                policyData: policyDataJson // Send the JSON string to the backend
+            };
+
+            await callApi('/api/admin/assign-protection', { method: 'POST', body: JSON.stringify(body) });
+            showToast(`Policy assigned to ${selectedAgents.length} agents!`, 'success');
+            resetWizard();
+
         } catch (error) {
-            // This will now catch and display our new error message
             showToast(`Error: ${error.message}`, 'error');
         }
     }

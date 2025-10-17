@@ -12,6 +12,24 @@ public class PolicyCapabilityDTO {
     private String target;
     private String severity;
     private Boolean isActive;
+    private String policyData;
+
+
+    public Boolean getActive() {
+        return isActive;
+    }
+
+    public void setActive(Boolean active) {
+        isActive = active;
+    }
+
+    public String getPolicyData() {
+        return policyData;
+    }
+
+    public void setPolicyData(String policyData) {
+        this.policyData = policyData;
+    }
 
     public Boolean getIsActive() {
         return isActive;

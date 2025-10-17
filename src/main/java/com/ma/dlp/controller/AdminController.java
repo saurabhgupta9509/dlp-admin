@@ -354,7 +354,7 @@ public class AdminController {
 
             for (Long agentId : request.getAgentIds()) {
                 try {
-                    agentService.activateCapability(agentId, request.getPolicyCode());
+                    agentService.activateCapability(agentId, request.getPolicyCode() , request.getPolicyData());
                     successCount++;
                 } catch (Exception e) {
                     errors.add("Agent " + agentId + ": " + e.getMessage());
@@ -538,6 +538,27 @@ public class AdminController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Alert stats by date retrieved", stats));
     }
 
+    // ADD THIS NEW ENDPOINT
+    @PostMapping("/update-policy-data")
+    public ResponseEntity<ApiResponse<String>> updatePolicyData(
+            @RequestBody UpdatePolicyDataRequest request,
+            HttpSession session) {
+
+        if (!isAdminAuthenticated(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(false, "Admin access required"));
+        }
+
+        try {
+            agentService.updatePolicyData(request.getAgentId(), request.getPolicyCode(), request.getPolicyData());
+            return ResponseEntity.ok(new ApiResponse<>(true, "Policy data updated successfully"));
+        } catch (Exception e) {
+            log.error("❌ Failed to update policy data: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false, "Failed to update data: " + e.getMessage()));
+        }
+    }
+
 //    @GetMapping("/debug/assignments")
 //    public ResponseEntity<ApiResponse<Map<String, Object>>> debugPolicyAssignments(HttpSession session) {
 //        if (!isAdminAuthenticated(session)) {
@@ -628,6 +649,15 @@ public class AdminController {
     public static class ProtectionAssignmentRequest {
         private String policyCode;
         private List<Long> agentIds;
+        private String policyData;
+
+        public String getPolicyData() {
+            return policyData;
+        }
+
+        public void setPolicyData(String policyData) {
+            this.policyData = policyData;
+        }
 
         public List<Long> getAgentIds() { return agentIds; }
         public void setAgentIds(List<Long> agentIds) { this.agentIds = agentIds; }

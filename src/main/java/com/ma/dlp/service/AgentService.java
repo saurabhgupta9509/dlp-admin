@@ -115,7 +115,7 @@ public class AgentService {
     /**
      * Activate a capability for an agent
      */
-    public void activateCapability(Long agentId, String capabilityCode) {
+    public void activateCapability(Long agentId, String capabilityCode , String policyData) {
         AgentCapability capability = agentCapabilityRepository
                 .findByAgentIdAndCapabilityCode(agentId, capabilityCode)
                 .orElseThrow(() -> new RuntimeException(
@@ -131,6 +131,7 @@ public class AgentService {
 
         capability.setIsActive(true);
         capability.setAssignedAt(new Date());
+        capability.setPolicyData(policyData);
         agentCapabilityRepository.save(capability);
 
         log.info("✅ Activated capability '{}' for agent: {}", capabilityCode, agentId);
@@ -212,6 +213,26 @@ public class AgentService {
         return result;
     }
 
+
+    /**
+     * Updates the data for an existing policy assignment
+     * without changing its active status.
+     */
+    @Transactional
+    public void updatePolicyData(Long agentId, String capabilityCode, String policyData) {
+        AgentCapability capability = agentCapabilityRepository
+                .findByAgentIdAndCapabilityCode(agentId, capabilityCode)
+                .orElseThrow(() -> new RuntimeException(
+                        String.format("Capability %s not found for agent %d", capabilityCode, agentId)));
+
+        // Set the new data
+        capability.setPolicyData(policyData);
+        agentCapabilityRepository.save(capability);
+
+        log.info("✅ Updated policy data for '{}' on agent: {}", capabilityCode, agentId);
+    }
+
+
     // ADD THIS NEW HELPER METHOD
     private PolicyCapabilityDTO convertToDto(AgentCapability entity) {
         PolicyCapabilityDTO dto = new PolicyCapabilityDTO();
@@ -223,6 +244,9 @@ public class AgentService {
         dto.setTarget(entity.getTarget());
         dto.setSeverity(entity.getSeverity());
         dto.setIsActive(entity.getIsActive()); // Pass the status to the DTO
+
+        dto.setPolicyData(entity.getPolicyData() != null ? entity.getPolicyData() : "");
+
         return dto;
     }
 
